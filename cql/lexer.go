@@ -1,7 +1,9 @@
 package cql
 
 import (
+	"fmt"
 	"iter"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -17,6 +19,10 @@ type LexError struct {
 	Message  string
 }
 
+func (e *LexError) Error() string {
+	return fmt.Sprintf("%d:%d: %s", e.Position.Line, e.Position.Column, e.Message)
+}
+
 type TokenType int
 
 const (
@@ -26,6 +32,7 @@ const (
 	TokenNumber
 	TokenDate
 	TokenOperator
+	TokenIdent
 )
 
 type Token struct {
@@ -69,6 +76,98 @@ func (l *Lexer) advance() (rune, bool) {
 	return r, true
 }
 
+func isWordStart(r rune) bool {
+	return unicode.IsLetter(r) || r == '_'
+}
+
+func isWordPart(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+}
+
+func isValidKeyword(s string) bool {
+	lower := strings.ToLower(s)
+	switch lower {
+	case "and", "or", "not":
+		return true
+	default:
+		return false
+	}
+}
+
+func (l *Lexer) lexWord() Token {
+	startPos := l.position
+	for r, ok := l.peek(); ok && isWordPart(r); r, ok = l.peek() {
+		l.advance()
+	}
+
+	word := l.input[startPos.Offset:l.position.Offset]
+	if isValidKeyword(word) {
+		return Token{Type: TokenKeyword, Value: word, Position: startPos}
+	}
+	return Token{Type: TokenIdent, Value: word, Position: startPos}
+}
+
+func (l *Lexer) skipDigits() {
+	for r, ok := l.peek(); ok && unicode.IsDigit(r); r, ok = l.peek() {
+		l.advance()
+	}
+}
+
+func (l *Lexer) lexNumber() (Token, error) {
+	startPos := l.position
+	l.skipDigits()
+	if r, ok := l.peek(); ok && r == '.' {
+		l.advance()
+		if r, ok := l.peek(); !ok || !unicode.IsDigit(r) {
+			return Token{}, &LexError{Position: startPos, Message: "expected digit after '.'"}
+		}
+		l.skipDigits()
+	}
+	return Token{Type: TokenNumber, Value: l.input[startPos.Offset:l.position.Offset], Position: startPos}, nil
+}
+
+func isOperator(r rune) bool {
+	switch r {
+	case '+', '-', '*', '/', '=', '<', '>', '!', '&', '|', '^', '%', '~':
+		return true
+	default:
+		return false
+	}
+}
+
+func isComplexOperator(s string) bool {
+	switch s {
+	case "==", "!=", "<=", ">=":
+		return true
+	default:
+		return false
+	}
+}
+
+func isStringStart(r rune) bool {
+	return r == '"' || r == '\''
+}
+
+func (l *Lexer) lexString() (Token, error) {
+	startPos := l.position
+	quote, _ := l.advance()
+	var value []rune
+	for {
+		r, ok := l.peek()
+		if !ok {
+			return Token{}, &LexError{Position: startPos, Message: "unterminated string"}
+		}
+		if r == quote {
+			l.advance()
+			break
+		}
+		value = append(value, r)
+		l.advance()
+	}
+
+	return Token{Type: TokenString, Value: string(value), Position: startPos}, nil
+}
+
 func (l *Lexer) lex() iter.Seq2[Token, error] {
 	return func(yield func(Token, error) bool) {
 		for l.position.Offset < len(l.input) {
@@ -76,16 +175,33 @@ func (l *Lexer) lex() iter.Seq2[Token, error] {
 			if !ok {
 				break
 			}
-			
+
 			var token Token
 			var err error
 
 			switch {
 			case unicode.IsSpace(r):
 				l.advance()
-				continue 
-
+				continue
+			case isOperator(r):
+				startPos := l.position
+				op := string(r)
+				l.advance()
+				if nextR, ok := l.peek(); ok && isComplexOperator(op+string(nextR)) {
+					op += string(nextR)
+					l.advance()
+				}
+				token = Token{Type: TokenOperator, Value: op, Position: startPos}
+			case isStringStart(r):
+				token, err = l.lexString()
+			case isWordStart(r):
+				token = l.lexWord()
+			case unicode.IsDigit(r):
+				token, err = l.lexNumber()
+			default:
+				err = &LexError{Position: l.position, Message: fmt.Sprintf("unexpected character %q", r)}
 			}
+
 			if err != nil {
 				yield(Token{}, err)
 				return

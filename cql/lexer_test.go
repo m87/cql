@@ -44,7 +44,7 @@ func TestBlankInput(t *testing.T) {
 }
 
 func TestSingleRuneOperator(t *testing.T) {
-	inputs := []string{"+", "-", "*", "/", "=", "<", ">"}
+	inputs := []string{"=", "<", ">", "!", "~"}
 
 	for _, input := range inputs {
 		t.Run(input, func(t *testing.T) {
@@ -56,6 +56,22 @@ func TestSingleRuneOperator(t *testing.T) {
 			assert.Equal(t, Position{Offset: 0, Line: 1, Column: 1}, tok.Position)
 
 			requireEOF(t, stream, Position{Offset: len(input), Line: 1, Column: len(input) + 1})
+		})
+	}
+}
+
+func TestUnsupportedOperator(t *testing.T) {
+	inputs := []string{"+", "-", "*", "/", "&", "|", "^", "%"}
+
+	for _, input := range inputs {
+		t.Run(input, func(t *testing.T) {
+			stream := newStream(t, input)
+
+			_, err, ok := stream.Next()
+			require.True(t, ok)
+			var lexErr *LexError
+			require.ErrorAs(t, err, &lexErr)
+			assert.Equal(t, Position{Offset: 0, Line: 1, Column: 1}, lexErr.Position)
 		})
 	}
 }

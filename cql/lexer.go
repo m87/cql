@@ -130,7 +130,7 @@ func (l *Lexer) lexNumber() (Token, error) {
 
 func isOperator(r rune) bool {
 	switch r {
-	case '+', '-', '*', '/', '=', '<', '>', '!', '&', '|', '^', '%', '~':
+	case '=', '<', '>', '!', '~':
 		return true
 	default:
 		return false

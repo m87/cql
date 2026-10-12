@@ -33,6 +33,8 @@ const (
 	TokenDate
 	TokenOperator
 	TokenIdent
+	TokenLeftParen
+	TokenRightParen
 )
 
 type Token struct {
@@ -102,7 +104,7 @@ func (l *Lexer) lexWord() Token {
 
 	word := l.input[startPos.Offset:l.position.Offset]
 	if isValidKeyword(word) {
-		return Token{Type: TokenKeyword, Value: word, Position: startPos}
+		return Token{Type: TokenKeyword, Value: strings.ToLower(word), Position: startPos}
 	}
 	return Token{Type: TokenIdent, Value: word, Position: startPos}
 }
@@ -180,6 +182,14 @@ func (l *Lexer) lex() iter.Seq2[Token, error] {
 			var err error
 
 			switch {
+			case r == '(':
+				startPos := l.position
+				l.advance()
+				token = Token{Type: TokenLeftParen, Value: "(", Position: startPos}
+			case r == ')':
+				startPos := l.position
+				l.advance()
+				token = Token{Type: TokenRightParen, Value: ")", Position: startPos}
 			case unicode.IsSpace(r):
 				l.advance()
 				continue

@@ -126,8 +126,8 @@ func TestKeywordToken(t *testing.T) {
 	stream := newStream(t, input)
 
 	expected := []Token{
-		{Type: TokenKeyword, Value: "aNd", Position: Position{Offset: 0, Line: 1, Column: 1}},
-		{Type: TokenKeyword, Value: "OR", Position: Position{Offset: 4, Line: 1, Column: 5}},
+		{Type: TokenKeyword, Value: "and", Position: Position{Offset: 0, Line: 1, Column: 1}},
+		{Type: TokenKeyword, Value: "or", Position: Position{Offset: 4, Line: 1, Column: 5}},
 		{Type: TokenKeyword, Value: "not", Position: Position{Offset: 7, Line: 1, Column: 8}},
 	}
 	for _, want := range expected {
@@ -142,11 +142,11 @@ func TestComplexInput(t *testing.T) {
 	stream := newStream(t, input)
 
 	expected := []Token{
-		{Type: TokenKeyword, Value: "AND", Position: Position{Offset: 0, Line: 1, Column: 1}},
+		{Type: TokenKeyword, Value: "and", Position: Position{Offset: 0, Line: 1, Column: 1}},
 		{Type: TokenString, Value: "string", Position: Position{Offset: 4, Line: 1, Column: 5}},
 		{Type: TokenOperator, Value: "<=", Position: Position{Offset: 13, Line: 1, Column: 14}},
 		{Type: TokenNumber, Value: "123.45", Position: Position{Offset: 16, Line: 1, Column: 17}},
-		{Type: TokenKeyword, Value: "OR", Position: Position{Offset: 23, Line: 1, Column: 24}},
+		{Type: TokenKeyword, Value: "or", Position: Position{Offset: 23, Line: 1, Column: 24}},
 		{Type: TokenString, Value: "another string", Position: Position{Offset: 26, Line: 1, Column: 27}},
 		{Type: TokenOperator, Value: "!=", Position: Position{Offset: 43, Line: 1, Column: 44}},
 		{Type: TokenString, Value: "string", Position: Position{Offset: 46, Line: 1, Column: 47}},
@@ -188,4 +188,26 @@ func TestNumberToken(t *testing.T) {
 	}
 }
 
+func TestParentheses(t *testing.T) {
+	input := "(a AND b) OR (c != d)"
+	stream := newStream(t, input)
 
+	expected := []Token{
+		{Type: TokenLeftParen, Value: "(", Position: Position{Offset: 0, Line: 1, Column: 1}},
+		{Type: TokenIdent, Value: "a", Position: Position{Offset: 1, Line: 1, Column: 2}},
+		{Type: TokenKeyword, Value: "and", Position: Position{Offset: 3, Line: 1, Column: 4}},
+		{Type: TokenIdent, Value: "b", Position: Position{Offset: 7, Line: 1, Column: 8}},
+		{Type: TokenRightParen, Value: ")", Position: Position{Offset: 8, Line: 1, Column: 9}},
+		{Type: TokenKeyword, Value: "or", Position: Position{Offset: 10, Line: 1, Column: 11}},
+		{Type: TokenLeftParen, Value: "(", Position: Position{Offset: 13, Line: 1, Column: 14}},
+		{Type: TokenIdent, Value: "c", Position: Position{Offset: 14, Line: 1, Column: 15}},
+		{Type: TokenOperator, Value: "!=", Position: Position{Offset: 16, Line: 1, Column: 17}},
+		{Type: TokenIdent, Value: "d", Position: Position{Offset: 19, Line: 1, Column: 20}},
+		{Type: TokenRightParen, Value: ")", Position: Position{Offset: 20, Line: 1, Column: 21}},
+	}
+	for _, want := range expected {
+		assert.Equal(t, want, requireNext(t, stream))
+	}
+
+	requireEOF(t, stream, Position{Offset: len(input), Line: 1, Column: len(input) + 1})
+}

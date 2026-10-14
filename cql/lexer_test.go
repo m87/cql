@@ -283,3 +283,88 @@ func TestComplextIndentifiers(t *testing.T) {
 
 	requireEOF(t, stream, Position{Offset: len(input), Line: 1, Column: len(input) + 1})
 }
+
+func TestEscapedString(t *testing.T) {
+	inputs := []string{
+		`"Hello \"World\"!"`,
+		`'It\'s a test'`,
+		`"Line 1\nLine 2"`,
+		`'Tab\tCharacter'`,
+		`"Backslash\\Test"`,
+	}
+
+	expectedValues := []string{
+		`Hello "World"!`,
+		`It's a test`,
+		"Line 1\nLine 2",
+		"Tab\tCharacter",
+		"Backslash\\Test",
+	}
+
+	for i, input := range inputs {
+		t.Run(input, func(t *testing.T) {
+			stream := newStream(t, input)
+
+			tok := requireNext(t, stream)
+			assert.Equal(t, TokenString, tok.Type)
+			assert.Equal(t, expectedValues[i], tok.Value)
+			assert.Equal(t, Position{Offset: 0, Line: 1, Column: 1}, tok.Position)
+
+			requireEOF(t, stream, Position{Offset: len(input), Line: 1, Column: len(input) + 1})
+		})
+	}
+
+}
+
+func TestNewLineInString(t *testing.T) {
+	input := "\"Hello\nWorld\""
+	stream := newStream(t, input)
+
+	_, err, ok := stream.Next()
+	require.True(t, ok)
+	var lexErr *LexError
+	require.ErrorAs(t, err, &lexErr)
+	assert.Equal(t, Position{Offset: 6, Line: 1, Column: 7}, lexErr.Position)
+
+	_, _, ok = stream.Next()
+	assert.False(t, ok)
+}
+
+func TestBackslashAtEndOfString(t *testing.T) {
+	input := "\"Hello\\\""
+	stream := newStream(t, input)
+
+	_, err, ok := stream.Next()
+	require.True(t, ok)
+	var lexErr *LexError
+	require.ErrorAs(t, err, &lexErr)
+
+	_, _, ok = stream.Next()
+	assert.False(t, ok)
+}
+
+func TestInvalidEscapeSequence(t *testing.T) {
+	input := "\"Hello\\xWorld\""
+	stream := newStream(t, input)
+
+	_, err, ok := stream.Next()
+	require.True(t, ok)
+	var lexErr *LexError
+	require.ErrorAs(t, err, &lexErr)
+
+	_, _, ok = stream.Next()
+	assert.False(t, ok)
+}
+
+func TestInvalidUtf8(t *testing.T) {
+	input := string([]byte{0xff, 0xfe, 0xfd})
+	stream := newStream(t, input)
+
+	_, err, ok := stream.Next()
+	require.True(t, ok)
+	var lexErr *LexError
+	require.ErrorAs(t, err, &lexErr)
+
+	_, _, ok = stream.Next()
+	assert.False(t, ok)
+}

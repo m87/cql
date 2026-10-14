@@ -164,6 +164,35 @@ func (l *Lexer) lexString() (Token, error) {
 			l.advance()
 			break
 		}
+
+		if r == '\n' {
+			return Token{}, &LexError{Position: l.position, Message: "unterminated string"}
+		}
+
+		if r == '\\' {
+			l.advance()
+			escaped, ok := l.peek()
+			if !ok {
+				return Token{}, &LexError{Position: startPos, Message: "unterminated string"}
+			}
+			switch escaped {
+			case 'n':
+				value = append(value, '\n')
+			case 't':
+				value = append(value, '\t')
+			case '\\':
+				value = append(value, '\\')
+			case '"':
+				value = append(value, '"')
+			case '\'':
+				value = append(value, '\'')
+			default:
+				return Token{}, &LexError{Position: l.position, Message: fmt.Sprintf("invalid escape sequence \\%c", escaped)}
+			}
+			l.advance()
+			continue
+		}
+
 		value = append(value, r)
 		l.advance()
 	}

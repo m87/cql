@@ -44,7 +44,7 @@ func TestBlankInput(t *testing.T) {
 }
 
 func TestSingleRuneOperator(t *testing.T) {
-	inputs := []string{"=", "<", ">", "!", "~"}
+	inputs := []string{"<", ">", "~"}
 
 	for _, input := range inputs {
 		t.Run(input, func(t *testing.T) {
@@ -58,6 +58,16 @@ func TestSingleRuneOperator(t *testing.T) {
 			requireEOF(t, stream, Position{Offset: len(input), Line: 1, Column: len(input) + 1})
 		})
 	}
+}
+
+func TestSingleExclamationOperator(t *testing.T) {
+	input := "!"
+	stream := newStream(t, input)
+
+	_, err, _ := stream.Next()
+	require.Error(t, err)
+	require.IsType(t, &LexError{}, err)
+	require.ErrorContains(t, err, "unsupported operator")
 }
 
 func TestUnsupportedOperator(t *testing.T) {
@@ -138,13 +148,14 @@ func TestMultipleTokens(t *testing.T) {
 }
 
 func TestKeywordToken(t *testing.T) {
-	input := "aNd OR not"
+	input := "aNd OR not iN"
 	stream := newStream(t, input)
 
 	expected := []Token{
 		{Type: TokenKeyword, Value: "and", Position: Position{Offset: 0, Line: 1, Column: 1}},
 		{Type: TokenKeyword, Value: "or", Position: Position{Offset: 4, Line: 1, Column: 5}},
 		{Type: TokenKeyword, Value: "not", Position: Position{Offset: 7, Line: 1, Column: 8}},
+		{Type: TokenKeyword, Value: "in", Position: Position{Offset: 11, Line: 1, Column: 12}},
 	}
 	for _, want := range expected {
 		assert.Equal(t, want, requireNext(t, stream))
@@ -220,6 +231,51 @@ func TestParentheses(t *testing.T) {
 		{Type: TokenOperator, Value: "!=", Position: Position{Offset: 16, Line: 1, Column: 17}},
 		{Type: TokenIdent, Value: "d", Position: Position{Offset: 19, Line: 1, Column: 20}},
 		{Type: TokenRightParen, Value: ")", Position: Position{Offset: 20, Line: 1, Column: 21}},
+	}
+	for _, want := range expected {
+		assert.Equal(t, want, requireNext(t, stream))
+	}
+
+	requireEOF(t, stream, Position{Offset: len(input), Line: 1, Column: len(input) + 1})
+}
+
+func TestCommaToken(t *testing.T) {
+	input := "a, b, c"
+	stream := newStream(t, input)
+
+	expected := []Token{
+		{Type: TokenIdent, Value: "a", Position: Position{Offset: 0, Line: 1, Column: 1}},
+		{Type: TokenComma, Value: ",", Position: Position{Offset: 1, Line: 1, Column: 2}},
+		{Type: TokenIdent, Value: "b", Position: Position{Offset: 3, Line: 1, Column: 4}},
+		{Type: TokenComma, Value: ",", Position: Position{Offset: 4, Line: 1, Column: 5}},
+		{Type: TokenIdent, Value: "c", Position: Position{Offset: 6, Line: 1, Column: 7}},
+	}
+	for _, want := range expected {
+		assert.Equal(t, want, requireNext(t, stream))
+	}
+
+	requireEOF(t, stream, Position{Offset: len(input), Line: 1, Column: len(input) + 1})
+}
+
+func TestSingleEqualSignOperator(t *testing.T) {
+	input := "="
+	stream := newStream(t, input)
+
+	tok := requireNext(t, stream)
+	assert.Equal(t, TokenOperator, tok.Type)
+	assert.Equal(t, "==", tok.Value)
+	assert.Equal(t, Position{Offset: 0, Line: 1, Column: 1}, tok.Position)
+
+	requireEOF(t, stream, Position{Offset: len(input), Line: 1, Column: len(input) + 1})
+}
+
+func TestComplextIndentifiers(t *testing.T) {
+	input := "session.duration session.start"
+	stream := newStream(t, input)
+
+	expected := []Token{
+		{Type: TokenIdent, Value: "session.duration", Position: Position{Offset: 0, Line: 1, Column: 1}},
+		{Type: TokenIdent, Value: "session.start", Position: Position{Offset: 17, Line: 1, Column: 18}},
 	}
 	for _, want := range expected {
 		assert.Equal(t, want, requireNext(t, stream))

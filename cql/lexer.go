@@ -35,6 +35,7 @@ const (
 	TokenIdent
 	TokenLeftParen
 	TokenRightParen
+	TokenComma
 )
 
 type Token struct {
@@ -83,13 +84,13 @@ func isWordStart(r rune) bool {
 }
 
 func isWordPart(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '.'
 }
 
 func isValidKeyword(s string) bool {
 	lower := strings.ToLower(s)
 	switch lower {
-	case "and", "or", "not":
+	case "and", "or", "not", "in":
 		return true
 	default:
 		return false
@@ -182,6 +183,10 @@ func (l *Lexer) lex() iter.Seq2[Token, error] {
 			var err error
 
 			switch {
+			case r == ',':
+				startPos := l.position
+				l.advance()
+				token = Token{Type: TokenComma, Value: ",", Position: startPos}
 			case r == '(':
 				startPos := l.position
 				l.advance()
@@ -201,7 +206,16 @@ func (l *Lexer) lex() iter.Seq2[Token, error] {
 					op += string(nextR)
 					l.advance()
 				}
-				token = Token{Type: TokenOperator, Value: op, Position: startPos}
+
+				if op == "!" {
+					err = &LexError{Position: startPos, Message: "unsupported operator '!'"}
+				}
+
+				if op == "=" {
+					token = Token{Type: TokenOperator, Value: "==", Position: startPos}
+				} else {
+					token = Token{Type: TokenOperator, Value: op, Position: startPos}
+				}
 			case isStringStart(r):
 				token, err = l.lexString()
 			case isWordStart(r):
